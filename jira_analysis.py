@@ -4,7 +4,7 @@ import numpy as np
 # Set display options
 pd.set_option('display.max_columns', None)  # Show all columns
 pd.set_option('display.width', None)  # Use maximum width of the console
-pd.set_option('display.max_colwidth', None)  # Adjusted to None to show full content
+pd.set_option('display.max_colwidth', 50)  # Adjusted to None to show full content
 
 # Path to your CSV file
 csv_file_path = 'jira_data.csv'
@@ -35,8 +35,12 @@ df_done['Story Point Rate'] = df_done.apply(
 
 
 
-# Concatenate all text fields into a single string for each entry
-df_done['Combined Text'] = df_done.apply(lambda row: ' '.join(str(row[col]) for col in df_done.columns if pd.api.types.is_string_dtype(df_done[col])), axis=1)
+# Concatenate specific fields into a single string for each entry, ensuring all are converted to strings
+df_done['Combined Text'] = df_done.apply(lambda row: ' '.join(str(row[col]) for col in ['Summary', 'Issue key', 'Status', 'Project name', 'Assignee', 'Priority', 'Resolution', 'Reporter', 'Created', 'Resolved', 'Description', 'VCP Pillar'] if col in df_done.columns), axis=1)
+
+# Or, to print the concatenated text of a specific row, for example, row with index 68
+if 68 in df_done.index:
+    print(df_done.loc[68, 'Combined Text'])
 
 # Define your categories and associated keywords
 category_keywords = {
@@ -67,14 +71,43 @@ df_done['Associated Systems'] = df_done['Combined Text'].apply(find_categories_w
 
 
 
-# Define columns of interest excluding 'Created' and 'Resolved'
+# Rename 'Custom field (VCP Strategic Pillar)' to 'VCP Pillar'
+df_done.rename(columns={'Custom field (VCP Strategic Pillar)': 'VCP Pillar'}, inplace=True)
+
+# Define your VCP Pillars and associated auxiliary terms
+vcp_pillar_keywords = {
+    'Operations Execution': ['Drop Ship', 'eCommerce', 'Buford 3.0', 'CABRA', 'OFL', 'TMS'],
+    'Transactional Experience': ['CPOV'],
+    
+    # ... add more pillars and associated keywords as needed
+}
+
+# Function to search for VCP Pillars and associated auxiliary terms in the combined text
+def find_vcp_pillars(row):
+    # Start with what's in the 'VCP Pillar' column
+    pillars = {row['VCP Pillar']} if pd.notnull(row['VCP Pillar']) else set()
+
+    # Check for auxiliary terms
+    for pillar, keywords in vcp_pillar_keywords.items():
+        for keyword in keywords:
+            if keyword.lower() in row['Combined Text'].lower():
+                pillars.add(pillar)
+
+    return ', '.join(pillars) if pillars else np.nan
+
+# Populate the new 'VCP Pillar' column using the function
+df_done['VCP Pillar'] = df_done.apply(find_vcp_pillars, axis=1)
+
+# Update the columns of interest to include 'Description' after 'Summary'
 columns_of_interest = [
     'Issue key',
     'Summary',
+    'Description',  # Include the description field
     'Story Points',
     'Story Point Rate',
-    'Total Time (days)',  # We are now adding the correct column name here
-    'Associated Systems'
+    'Total Time (days)',
+    'Associated Systems',
+    'VCP Pillar'  # Make sure to include the new VCP Pillar column if you have added it
 ]
 
 # Filter the DataFrame to include only the columns of interest

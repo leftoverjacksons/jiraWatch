@@ -4,7 +4,7 @@ import numpy as np
 # Set display options
 pd.set_option('display.max_columns', None)  # Show all columns
 pd.set_option('display.width', None)  # Use maximum width of the console
-pd.set_option('display.max_colwidth', 30)  # Adjusted to None to show full content
+pd.set_option('display.max_colwidth', None)  # Adjusted to None to show full content
 
 # Path to your CSV file
 csv_file_path = 'jira_data.csv'
@@ -19,16 +19,21 @@ df_done = df[df['Status'] == 'Done'].copy()  # Create a copy to avoid SettingWit
 df_done['Created'] = pd.to_datetime(df_done['Created'], errors='coerce')
 df_done['Resolved'] = pd.to_datetime(df_done['Resolved'], errors='coerce')
 
+# Rename 'Custom field (Story Points)' to 'Story Points'
+df_done.rename(columns={'Custom field (Story Points)': 'Story Points'}, inplace=True)
+
 # Calculate the total time in days for rows where both 'Created' and 'Resolved' are not NaT
 df_done = df_done.dropna(subset=['Created', 'Resolved'])
-df_done['Total Time (days)'] = (df_done['Resolved'] - df_done['Created']).apply(lambda x: x.total_seconds() / (24 * 3600))
+df_done['Total Time (days)'] = (df_done['Resolved'] - df_done['Created']).dt.days
 
 # Add a new column for Story Point Rate
 # Set to 500 for 0 'Total Time (days)', otherwise calculate normally
 df_done['Story Point Rate'] = df_done.apply(
-    lambda row: 500 if row['Total Time (days)'] == 0 else row['Custom field (Story Points)'] / row['Total Time (days)'],
+    lambda row: 500 if row['Total Time (days)'] == 0 else row['Story Points'] / row['Total Time (days)'],
     axis=1
 )
+
+
 
 # Concatenate all text fields into a single string for each entry
 df_done['Combined Text'] = df_done.apply(lambda row: ' '.join(str(row[col]) for col in df_done.columns if pd.api.types.is_string_dtype(df_done[col])), axis=1)
@@ -62,21 +67,18 @@ df_done['Associated Systems'] = df_done['Combined Text'].apply(find_categories_w
 
 
 
-# Rename 'Custom field (Story Points)' to 'Story Points'
-df_done.rename(columns={'Custom field (Story Points)': 'Story Points'}, inplace=True)
-
-# Define columns of interest, now excluding 'Created', 'Resolved', and with 'Story Points' renamed
+# Define columns of interest excluding 'Created' and 'Resolved'
 columns_of_interest = [
     'Issue key',
     'Summary',
     'Story Points',
     'Story Point Rate',
-    'Associated Systems'  # Make sure this is included
+    'Total Time (days)',  # We are now adding the correct column name here
+    'Associated Systems'
 ]
-
 
 # Filter the DataFrame to include only the columns of interest
 filtered_df_updated = df_done[columns_of_interest]
 
-# Display the first 40 entries of the filtered DataFrame
+# Display the entries of the filtered DataFrame
 print(filtered_df_updated.head(50))

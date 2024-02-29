@@ -4,7 +4,7 @@ import numpy as np
 # Set display options
 pd.set_option('display.max_columns', None)  # Show all columns
 pd.set_option('display.width', None)  # Use maximum width of the console
-pd.set_option('display.max_colwidth', 1)  # Show the full content of each column
+pd.set_option('display.max_colwidth', None)  # Adjusted to None to show full content
 
 # Path to your CSV file
 csv_file_path = 'jira_data.csv'
@@ -30,18 +30,35 @@ df_done['Story Point Rate'] = df_done.apply(
     axis=1
 )
 
-# Define the columns you're interested in, including the new 'Story Point Rate'
+# Concatenate all text fields into a single string for each entry
+df_done['Combined Text'] = df_done.apply(lambda row: ' '.join(str(row[col]) for col in df_done.columns if pd.api.types.is_string_dtype(df_done[col])), axis=1)
+
+# Define the categories to search for
+categories = ['JDA', 'JDE', 'ORO', 'DBA']
+
+# Function to search for categories in the combined text and return found categories
+def find_categories(text):
+    found_categories = [category for category in categories if category in text]
+    return ', '.join(found_categories) if found_categories else np.nan
+
+# Search for categories in each entry and populate a new attribute
+df_done['Associated Systems'] = df_done['Combined Text'].apply(find_categories)
+
+# Previously missing definition of columns_of_interest
 columns_of_interest = [
     'Issue key',
     'Summary',
     'Created',
     'Resolved',
     'Custom field (Story Points)',
-    'Story Point Rate'  # New calculated field
+    'Story Point Rate'  # This was already part of your final DataFrame
 ]
 
-# Filter the DataFrame to include only the columns of interest
-filtered_df = df_done[columns_of_interest]
+# Update the columns of interest to include 'Associated Systems'
+columns_of_interest_updated = columns_of_interest + ['Associated Systems']
+
+# Filter the DataFrame to include only the updated columns of interest
+filtered_df_updated = df_done[columns_of_interest_updated]
 
 # Display the first 10 entries of the filtered DataFrame
-print(filtered_df.head(10))
+print(filtered_df_updated.head(40))

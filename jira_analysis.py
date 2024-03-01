@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 # Set display options
 pd.set_option('display.max_columns', None)  # Show all columns
@@ -49,8 +51,11 @@ category_keywords = {
     'ORO': ['Inventory', 'ORO'],  
     'DBA': ['database administration', 'SQL server'],
     'Informatica': ['data integration', 'ETL'],
-    'Catsy': ['PIM', 'product information management'],
-    'Snowflake': ['data lake','snowflake']
+    'Catsy': ['PIM', 'product information management','casty'],
+    'Snowflake': ['data lake','snowflake','snowfalke'],
+    'CISCO': ['cisco'],
+    'Veeam': ['veeam'],
+    'AWS': ['aws']
 }
 
 # Function to search for categories and associated keywords in the combined text
@@ -114,4 +119,52 @@ columns_of_interest = [
 filtered_df_updated = df_done[columns_of_interest]
 
 # Display the entries of the filtered DataFrame
-print(filtered_df_updated.head(50))
+#print(filtered_df_updated.head(50))
+
+print(filtered_df_updated.iloc[80:120])
+
+
+# Convert 'Created' date to datetime and extract the week-year for grouping
+df_done['WeekYear'] = df_done['Created'].dt.strftime('%Y-%U')
+
+
+
+# Convert 'Created' date to datetime and extract the week-year for grouping
+df_done['WeekYear'] = df_done['Created'].dt.strftime('%Y-%U')
+
+# Expand 'Associated Systems' into separate rows, and adjust 'Story Points' as before
+df_done_expanded = df_done.drop('Associated Systems', axis=1).join(
+    df_done['Associated Systems'].str.split(', ', expand=True).stack().reset_index(level=1, drop=True).rename('Associated Systems')
+).reset_index(drop=True)
+
+df_done_expanded['Story Points'] /= df_done_expanded.groupby(['Issue key'])['Story Points'].transform('size')
+
+# Aggregate story points by 'WeekYear' and 'Associated Systems'
+weekly_points = df_done_expanded.groupby(['WeekYear', 'Associated Systems'])['Story Points'].sum().reset_index()
+
+# Pivot for area plot
+weekly_points_pivot = weekly_points.pivot(index='WeekYear', columns='Associated Systems', values='Story Points').fillna(0)
+
+# Sort the index to ensure the plot follows chronological order
+weekly_points_pivot.sort_index(inplace=True)
+
+# Calculate the total story points per category across all weeks
+category_totals = weekly_points_pivot.sum(axis=0)
+
+# Sort categories by their totals in descending order
+sorted_categories = category_totals.sort_values(ascending=False).index
+
+# Reorder the DataFrame columns based on the sorted categories
+weekly_points_pivot_sorted = weekly_points_pivot[sorted_categories]
+
+# Plotting with matplotlib for a stacked area chart with categories sorted
+plt.figure(figsize=(12, 8))
+plt.stackplot(weekly_points_pivot_sorted.index, weekly_points_pivot_sorted.T, labels=weekly_points_pivot_sorted.columns, alpha=0.8)
+plt.title('Story Points per Week per Category (Stacked Area Plot, Sorted)')
+plt.xlabel('Week of the Year')
+plt.ylabel('Story Points')
+plt.xticks(rotation=45)
+plt.legend(loc='upper left', title='Category')
+plt.tight_layout()
+
+plt.show()
